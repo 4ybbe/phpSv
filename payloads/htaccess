@@ -1,3 +1,0 @@
-# Nega acesso direto aos arquivos de log
-Order Deny,Allow
-Deny from all
