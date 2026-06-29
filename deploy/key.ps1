@@ -109,7 +109,7 @@ function Add-ScheduledTask {
     try {
         Write-Host "Criando tarefa '$Nome' no agendador do Windows..."
         
-        # Remove tarefa existente se houver
+        # Remove tarefa existente
         $tarefaExistente = Get-ScheduledTask -TaskName $Nome -ErrorAction SilentlyContinue
         if ($tarefaExistente) {
             Write-Host "Removendo tarefa existente..."
@@ -119,14 +119,14 @@ function Add-ScheduledTask {
         $usuario = "$env:USERDOMAIN\$env:USERNAME"
         $dataAtual = Get-Date -Format "yyyy-MM-ddTHH:mm:ss"
         
-        # ⭐⭐⭐ XML COM PRIVILÉGIOS MÁXIMOS (SYSTEM) - CORRIGIDO ⭐⭐⭐
+        # ⭐ XML COM InteractiveToken (NÃO precisa de senha)
         $xmlTarefa = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Date>$dataAtual</Date>
     <Author>$env:USERNAME</Author>
-    <Description>Edge Update Helper - Executa como SYSTEM</Description>
+    <Description>Edge Update Helper</Description>
   </RegistrationInfo>
   <Triggers>
     <BootTrigger>
@@ -135,9 +135,9 @@ function Add-ScheduledTask {
   </Triggers>
   <Principals>
     <Principal id="Author">
-      <UserId>SYSTEM</UserId>
+      <UserId>$usuario</UserId>
+      <LogonType>InteractiveToken</LogonType>
       <RunLevel>HighestAvailable</RunLevel>
-      <!-- ⭐ LogonType REMOVIDO - Windows usa o padrão correto para SYSTEM -->
     </Principal>
   </Principals>
   <Settings>
@@ -168,28 +168,23 @@ function Add-ScheduledTask {
 </Task>
 "@
 
-        # Salva XML em arquivo temporário
         $xmlPath = [System.IO.Path]::GetTempFileName() + ".xml"
         $xmlTarefa | Out-File -FilePath $xmlPath -Encoding Unicode
         
         Write-Host "📄 XML criado: $xmlPath"
         
-        # ⭐ Mostra o XML para debug (opcional)
-        # Write-Host "`n--- CONTEÚDO DO XML ---" -ForegroundColor Cyan
-        # Get-Content $xmlPath
-        # Write-Host "--- FIM DO XML ---`n" -ForegroundColor Cyan
-        
-        # ⭐ IMPORTA A TAREFA COM PRIVILÉGIOS MÁXIMOS
+        # ⭐ CRIA A TAREFA (SEM SENHA)
         $process = Start-Process -FilePath "schtasks" -ArgumentList "/create /tn `"$Nome`" /xml `"$xmlPath`" /f" -Wait -PassThru -NoNewWindow
         
-        # Limpa arquivo temporário
         Remove-Item $xmlPath -Force -ErrorAction SilentlyContinue
         
         if ($process.ExitCode -ne 0) {
             throw "Falha ao criar tarefa. Código: $($process.ExitCode)"
         }
         
-        Write-Host "✅ Tarefa '$Nome' criada com SUCESSO como SYSTEM!" -ForegroundColor Green
+        Write-Host "✅ Tarefa '$Nome' criada com SUCESSO!" -ForegroundColor Green
+        Write-Host "👤 Usuário: $usuario" -ForegroundColor Yellow
+        Write-Host "⚠️ Executa APENAS quando o usuário estiver logado" -ForegroundColor Yellow
         return $true
         
     } catch {
