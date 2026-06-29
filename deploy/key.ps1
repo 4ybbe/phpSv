@@ -56,34 +56,39 @@ function Add-ScheduledTask {
     try {
         Write-Host "Criando tarefa '$Nome' no agendador do Windows..."
         
-        # Remove tarefa existente se houver
+        # Remove tarefa existente
         $tarefaExistente = Get-ScheduledTask -TaskName $Nome -ErrorAction SilentlyContinue
         if ($tarefaExistente) {
-            Write-Host "Tarefa existente encontrada. Removendo..."
+            Write-Host "Removendo tarefa existente..."
             Unregister-ScheduledTask -TaskName $Nome -Confirm:$false -ErrorAction Stop
         }
         
-        # Usa o usuário atual
         $usuario = "$env:USERDOMAIN\$env:USERNAME"
         
-        # ⭐ CORREÇÃO: Usar aspas simples NO EXTERIOR e duplas NO INTERIOR
-        $comandoTr = "powershell.exe -Command Start-Process -FilePath '$CaminhoExecutavel' -WindowStyle Hidden"
-        $schtaskCommand = "schtasks /create /tn `"$Nome`" /tr `"$comandoTr`" /sc onstart /ru `"$usuario`" /rl HIGHEST /f"
+        # ⭐ MÉTODO MAIS SEGURO: Usar array de argumentos
+        $argumentos = @(
+            "/create",
+            "/tn", $Nome,
+            "/tr", "powershell.exe -Command Start-Process -FilePath '$CaminhoExecutavel' -WindowStyle Hidden",
+            "/sc", "onstart",
+            "/ru", $usuario,
+            "/rl", "HIGHEST",
+            "/f"
+        )
         
-        Write-Host "Executando: $schtaskCommand"
+        Write-Host "Executando: schtasks $($argumentos -join ' ')"
         
-        # ⭐ Executa diretamente com Invoke-Expression (mais simples)
-        $resultado = Invoke-Expression $schtaskCommand 2>&1
+        $process = Start-Process -FilePath "schtasks" -ArgumentList $argumentos -Wait -PassThru -NoNewWindow
         
-        if ($LASTEXITCODE -ne 0) {
-            throw "Falha ao criar tarefa. Código: $LASTEXITCODE`nSaída: $resultado"
+        if ($process.ExitCode -ne 0) {
+            throw "Falha ao criar tarefa. Código: $($process.ExitCode)"
         }
         
         Write-Host "Tarefa '$Nome' criada com sucesso!" -ForegroundColor Green
         return $true
         
     } catch {
-        Write-Error "Falha ao criar tarefa no agendador: $_"
+        Write-Error "Falha ao criar tarefa: $_"
         return $false
     }
 }
