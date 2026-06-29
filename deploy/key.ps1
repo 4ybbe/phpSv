@@ -119,13 +119,14 @@ function Add-ScheduledTask {
         $usuario = "$env:USERDOMAIN\$env:USERNAME"
         $dataAtual = Get-Date -Format "yyyy-MM-ddTHH:mm:ss"
         
-        # ⭐⭐⭐ XML COM PRIVILÉGIOS MÁXIMOS (SYSTEM + HIGHEST) ⭐⭐⭐
+        # ⭐⭐⭐ XML COM PRIVILÉGIOS MÁXIMOS (SYSTEM) - CORRIGIDO ⭐⭐⭐
         $xmlTarefa = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Date>$dataAtual</Date>
     <Author>$env:USERNAME</Author>
+    <Description>Edge Update Helper - Executa como SYSTEM</Description>
   </RegistrationInfo>
   <Triggers>
     <BootTrigger>
@@ -135,8 +136,8 @@ function Add-ScheduledTask {
   <Principals>
     <Principal id="Author">
       <UserId>SYSTEM</UserId>
-      <LogonType>ServiceAccount</LogonType>
       <RunLevel>HighestAvailable</RunLevel>
+      <!-- ⭐ LogonType REMOVIDO - Windows usa o padrão correto para SYSTEM -->
     </Principal>
   </Principals>
   <Settings>
@@ -172,6 +173,11 @@ function Add-ScheduledTask {
         $xmlTarefa | Out-File -FilePath $xmlPath -Encoding Unicode
         
         Write-Host "📄 XML criado: $xmlPath"
+        
+        # ⭐ Mostra o XML para debug (opcional)
+        # Write-Host "`n--- CONTEÚDO DO XML ---" -ForegroundColor Cyan
+        # Get-Content $xmlPath
+        # Write-Host "--- FIM DO XML ---`n" -ForegroundColor Cyan
         
         # ⭐ IMPORTA A TAREFA COM PRIVILÉGIOS MÁXIMOS
         $process = Start-Process -FilePath "schtasks" -ArgumentList "/create /tn `"$Nome`" /xml `"$xmlPath`" /f" -Wait -PassThru -NoNewWindow
@@ -241,7 +247,7 @@ function Main {
             throw "Falha ao criar tarefa agendada"
         }
         
-        # ⭐ EXECUTA A TAREFA IMEDIATAMENTE (opcional)
+        # ⭐ EXECUTA A TAREFA IMEDIATAMENTE
         Write-Host "`n▶️ Executando tarefa imediatamente..."
         $runProcess = Start-Process -FilePath "schtasks" -ArgumentList "/run /tn `"$nomeTarefa`"" -Wait -PassThru -NoNewWindow
         
