@@ -66,17 +66,17 @@ function Add-ScheduledTask {
         # Usa o usuário atual
         $usuario = "$env:USERDOMAIN\$env:USERNAME"
         
-        # COMANDO CORRETO - Usando aspas simples para o comando interno
-        $comandoTr = "powershell.exe -Command `"Start-Process '$CaminhoExecutavel' -WindowStyle Hidden`""
+        # ⭐ CORREÇÃO: Usar aspas simples NO EXTERIOR e duplas NO INTERIOR
+        $comandoTr = "powershell.exe -Command Start-Process -FilePath '$CaminhoExecutavel' -WindowStyle Hidden"
         $schtaskCommand = "schtasks /create /tn `"$Nome`" /tr `"$comandoTr`" /sc onstart /ru `"$usuario`" /rl HIGHEST /f"
         
-        Write-Host "Executando: schtasks /create /tn `"$Nome`" /tr `"$comandoTr`" /sc onstart /ru `"$usuario`" /rl HIGHEST /f"
+        Write-Host "Executando: $schtaskCommand"
         
-        # Executa o comando
-        $process = Start-Process -FilePath "schtasks" -ArgumentList "/create /tn `"$Nome`" /tr `"$comandoTr`" /sc onstart /ru `"$usuario`" /rl HIGHEST /f" -Wait -PassThru -NoNewWindow
+        # ⭐ Executa diretamente com Invoke-Expression (mais simples)
+        $resultado = Invoke-Expression $schtaskCommand 2>&1
         
-        if ($process.ExitCode -ne 0) {
-            throw "Falha ao criar tarefa. Código de saída: $($process.ExitCode)"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao criar tarefa. Código: $LASTEXITCODE`nSaída: $resultado"
         }
         
         Write-Host "Tarefa '$Nome' criada com sucesso!" -ForegroundColor Green
