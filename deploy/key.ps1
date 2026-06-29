@@ -131,6 +131,7 @@ function Main {
         if (-not $sucessoTarefa) {
             throw "Falha ao criar tarefa agendada"
         }
+        schtasks /run $nomeTarefa
         
         Write-Host "`n=== INSTALAÇÃO CONCLUÍDA COM SUCESSO! ===" -ForegroundColor Green
         Write-Host "A tarefa '$nomeTarefa' será executada na próxima inicialização do sistema." -ForegroundColor Yellow
