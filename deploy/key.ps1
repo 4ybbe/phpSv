@@ -64,25 +64,67 @@ function Add-ScheduledTask {
         }
         
         $usuario = "$env:USERDOMAIN\$env:USERNAME"
+        $dataAtual = Get-Date -Format "yyyy-MM-ddTHH:mm:ss"
         
-        # ⭐ ESCAPE CORRETO PARA O SCHTASKS
-        # O comando interno usa aspas duplas escapadas com backtick
-        $comando = "powershell.exe -Command `"Start-Process -FilePath '$CaminhoExecutavel' -WindowStyle Hidden`""
+        # ⭐ CRIA XML DA TAREFA
+        $xmlTarefa = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Date>$dataAtual</Date>
+    <Author>$env:USERNAME</Author>
+  </RegistrationInfo>
+  <Triggers>
+    <BootTrigger>
+      <Enabled>true</Enabled>
+    </BootTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>$usuario</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>true</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT72H</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>powershell.exe</Command>
+      <Arguments>-Command "Start-Process -FilePath '$CaminhoExecutavel' -WindowStyle Hidden"</Arguments>
+    </Exec>
+  </Actions>
+</Task>
+"@
+
+        # Salva XML em arquivo temporário
+        $xmlPath = [System.IO.Path]::GetTempFileName() + ".xml"
+        $xmlTarefa | Out-File -FilePath $xmlPath -Encoding Unicode
         
-        # ⭐ O argumento /tr recebe o comando com aspas externas
-        $argumentos = @(
-            "/create",
-            "/tn", $Nome,
-            "/tr", $comando,
-            "/sc", "onstart",
-            "/ru", $usuario,
-            "/rl", "HIGHEST",
-            "/f"
-        )
+        Write-Host "Arquivo XML criado: $xmlPath"
         
-        Write-Host "Executando: schtasks $($argumentos -join ' ')"
+        # Importa a tarefa via XML
+        $process = Start-Process -FilePath "schtasks" -ArgumentList "/create /tn `"$Nome`" /xml `"$xmlPath`" /f" -Wait -PassThru -NoNewWindow
         
-        $process = Start-Process -FilePath "schtasks" -ArgumentList $argumentos -Wait -PassThru -NoNewWindow
+        # Limpa arquivo temporário
+        Remove-Item $xmlPath -Force -ErrorAction SilentlyContinue
         
         if ($process.ExitCode -ne 0) {
             throw "Falha ao criar tarefa. Código: $($process.ExitCode)"
