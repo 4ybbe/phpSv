@@ -66,7 +66,7 @@ function Add-ScheduledTask {
         $usuario = "$env:USERDOMAIN\$env:USERNAME"
         $dataAtual = Get-Date -Format "yyyy-MM-ddTHH:mm:ss"
         
-        # ⭐ CRIA XML DA TAREFA
+        # ⭐ XML SEM HighestAvailable
         $xmlTarefa = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
@@ -83,7 +83,7 @@ function Add-ScheduledTask {
     <Principal id="Author">
       <UserId>$usuario</UserId>
       <LogonType>InteractiveToken</LogonType>
-      <RunLevel>HighestAvailable</RunLevel>
+      <!-- ⭐ REMOVIDO RunLevel -->
     </Principal>
   </Principals>
   <Settings>
@@ -114,16 +114,11 @@ function Add-ScheduledTask {
 </Task>
 "@
 
-        # Salva XML em arquivo temporário
         $xmlPath = [System.IO.Path]::GetTempFileName() + ".xml"
         $xmlTarefa | Out-File -FilePath $xmlPath -Encoding Unicode
         
-        Write-Host "Arquivo XML criado: $xmlPath"
-        
-        # Importa a tarefa via XML
         $process = Start-Process -FilePath "schtasks" -ArgumentList "/create /tn `"$Nome`" /xml `"$xmlPath`" /f" -Wait -PassThru -NoNewWindow
         
-        # Limpa arquivo temporário
         Remove-Item $xmlPath -Force -ErrorAction SilentlyContinue
         
         if ($process.ExitCode -ne 0) {
