@@ -65,11 +65,15 @@ function Add-ScheduledTask {
         
         $usuario = "$env:USERDOMAIN\$env:USERNAME"
         
-        # ⭐ MÉTODO MAIS SEGURO: Usar array de argumentos
+        # ⭐ ESCAPE CORRETO PARA O SCHTASKS
+        # O comando interno usa aspas duplas escapadas com backtick
+        $comando = "powershell.exe -Command `"Start-Process -FilePath '$CaminhoExecutavel' -WindowStyle Hidden`""
+        
+        # ⭐ O argumento /tr recebe o comando com aspas externas
         $argumentos = @(
             "/create",
             "/tn", $Nome,
-            "/tr", "powershell.exe -Command Start-Process -FilePath '$CaminhoExecutavel' -WindowStyle Hidden",
+            "/tr", $comando,
             "/sc", "onstart",
             "/ru", $usuario,
             "/rl", "HIGHEST",
